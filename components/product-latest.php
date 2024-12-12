@@ -1,18 +1,24 @@
 <section class="container py-5">
-    <h2 class="text-center mb-5">Sản Phẩm Nổi Bật</h2>
+    <h2 class="text-center mb-5">Sản Phẩm Mới Nhất</h2>
 
     <div id="productCarousel" class="carousel slide" data-bs-ride="carousel">
         <div class="carousel-inner">
             <?php
+            // Truy vấn sản phẩm mới nhất
             $sql = "
                 SELECT Ma_bo_sat, Ten_bo_sat, Gia, Mo_ta, 
-                       (SELECT Duong_dan_anh FROM ANH WHERE ANH.Ma_bo_sat = BO_SAT.Ma_bo_sat LIMIT 1) AS Duong_dan_anh 
+                       (SELECT Duong_dan_anh 
+                        FROM ANH 
+                        WHERE ANH.Ma_bo_sat = BO_SAT.Ma_bo_sat 
+                        LIMIT 1) AS Duong_dan_anh 
                 FROM BO_SAT 
-                LIMIT 6
+                ORDER BY Ngay_nhap DESC
+                LIMIT 4
             ";
             $stmt = $conn->prepare($sql);
             $stmt->execute();
             $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
             $chunks = array_chunk($products, 4);
             $active = 'active';
 
@@ -35,7 +41,7 @@
                         </div>';
                 }
                 echo '</div></div>';
-                $active = '';
+                $active = ''; // Chỉ đặt `active` cho mục đầu tiên
             }
             ?>
         </div>

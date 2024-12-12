@@ -88,7 +88,7 @@ if (isset($_GET['id'])) {
 
         <!-- Nút quay lại -->
         <div class="form-group text-center mt-4">
-            <a href="products.php" class="btn btn-secondary btn-lg">Quay lại</a>
+            <a href="./product-management.php" class="btn btn-secondary btn-lg">Quay lại</a>
         </div>
     </form>
 </div>

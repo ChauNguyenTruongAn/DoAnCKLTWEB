@@ -1,4 +1,3 @@
-<!-- components/product-grid.php -->
 <div class="product-grid">
     <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4">
         <?php
@@ -15,40 +14,43 @@
             $order = isset($_GET['order']) ? $_GET['order'] : 'asc';
             $category = isset($_GET['category']) ? (int) $_GET['category'] : null;
 
-            // Xây dựng câu SQL động dựa trên các tham số
+            // Lấy sản phẩm
             $sql = "SELECT 
                         BO_SAT.Ma_bo_sat, 
                         BO_SAT.Ten_bo_sat, 
                         BO_SAT.Gia, 
                         BO_SAT.Mo_ta, 
-                        (SELECT Duong_dan_anh 
-                         FROM ANH 
-                         WHERE ANH.Ma_bo_sat = BO_SAT.Ma_bo_sat 
-                         LIMIT 1) AS Duong_dan_anh, 
+                        ANH.Duong_dan_anh, 
                         DANH_MUC.Ten_danh_muc,
                         COALESCE(CEILING(AVG(DANH_GIA.Sao)), 0) AS Sao,
-                        COUNT(DANH_GIA.Ma_bo_sat) AS So_luong_danh_gia
+                        COUNT(DANH_GIA.Ma_danh_gia) AS So_luong_danh_gia
                     FROM BO_SAT
                     LEFT JOIN DANH_GIA ON BO_SAT.Ma_bo_sat = DANH_GIA.Ma_bo_sat
-                    JOIN DANH_MUC ON BO_SAT.Ma_danh_muc = DANH_MUC.Ma_danh_muc";
+                    JOIN DANH_MUC ON BO_SAT.Ma_danh_muc = DANH_MUC.Ma_danh_muc
+                    LEFT JOIN ANH ON BO_SAT.Ma_bo_sat = ANH.Ma_bo_sat";
 
-            // Lọc theo danh mục
             if ($category) {
                 $sql .= " WHERE BO_SAT.Ma_danh_muc = :category";
             }
 
-            // Sắp xếp
+            $sql .= " GROUP BY 
+                        BO_SAT.Ma_bo_sat, 
+                        BO_SAT.Ten_bo_sat, 
+                        BO_SAT.Gia, 
+                        BO_SAT.Mo_ta, 
+                        ANH.Duong_dan_anh, 
+                        DANH_MUC.Ten_danh_muc";
+
             if ($sort == 'price') {
                 $sql .= " ORDER BY BO_SAT.Gia $order";
             } elseif ($sort == 'rating') {
-                $sql .= " ORDER BY AVG(DANH_GIA.Sao) $order";
+                $sql .= " ORDER BY Sao $order";
             } else {
-                $sql .= " ORDER BY BO_SAT.Ma_bo_sat $order";  // Sắp xếp theo mặc định
+                $sql .= " ORDER BY BO_SAT.Ma_bo_sat $order";
             }
 
             $sql .= " LIMIT :limit OFFSET :offset";
 
-            // Chuẩn bị và thực thi câu lệnh SQL
             $stmt = $conn->prepare($sql);
             if ($category) {
                 $stmt->bindValue(':category', $category, PDO::PARAM_INT);
@@ -59,6 +61,7 @@
 
             $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+            // Hiển thị sản phẩm
             if ($products) {
                 foreach ($products as $product) {
                     include 'components/product-card.php';
@@ -67,7 +70,9 @@
                 echo "<p>Không có sản phẩm nào để hiển thị.</p>";
             }
 
-            // Lấy tổng số sản phẩm để tính phân trang
+            $stmt->closeCursor();
+
+            // Lấy tổng số sản phẩm
             $countSql = "SELECT COUNT(*) AS total FROM BO_SAT";
             if ($category) {
                 $countSql .= " WHERE Ma_danh_muc = :category";
@@ -79,6 +84,8 @@
             $countStmt->execute();
             $total = $countStmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
             $totalPages = ceil($total / $limit);
+
+            $countStmt->closeCursor();
         } catch (PDOException $e) {
             echo "<p class='text-danger'>Lỗi: " . htmlspecialchars($e->getMessage()) . "</p>";
         }

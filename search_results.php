@@ -1,36 +1,30 @@
 <?php
 include('config.php');
 
-// Lấy tham số từ URL (nếu có)
 $query = $_GET['query'] ?? '';
-$sort = $_GET['sort'] ?? '';  // Lấy giá trị sắp xếp từ tham số sort
-$category = $_GET['category'] ?? '';  // Lọc theo danh mục
-$priceMin = $_GET['price_min'] ?? '';  // Lọc theo giá thấp nhất
-$priceMax = $_GET['price_max'] ?? '';  // Lọc theo giá cao nhất
-$rating = $_GET['rating'] ?? '';  // Lọc theo đánh giá
+$sort = $_GET['sort'] ?? '';
+$category = $_GET['category'] ?? '';
+$priceMin = $_GET['price_min'] ?? '';
+$priceMax = $_GET['price_max'] ?? '';
+$rating = $_GET['rating'] ?? '';
 
-// Lấy danh mục sản phẩm từ CSDL
 $sql = "SELECT * FROM DANH_MUC";
 $stmt = $conn->prepare($sql);
 $stmt->execute();
 $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Lấy khoảng giá từ CSDL
 $sql = "SELECT MIN(Gia) AS min_price, MAX(Gia) AS max_price FROM BO_SAT";
 $stmt = $conn->prepare($sql);
 $stmt->execute();
 $priceRange = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// Khởi tạo phần WHERE cho truy vấn
 $whereClauses = [];
 $whereClauses[] = "(BO_SAT.Ten_bo_sat LIKE :query OR BO_SAT.Mo_ta LIKE :query)";
 
-// Lọc theo danh mục
 if ($category) {
     $whereClauses[] = "BO_SAT.Ma_danh_muc = :category";
 }
 
-// Lọc theo khoảng giá
 if ($priceMin && $priceMax) {
     $whereClauses[] = "BO_SAT.Gia BETWEEN :price_min AND :price_max";
 } elseif ($priceMin) {
@@ -39,14 +33,12 @@ if ($priceMin && $priceMax) {
     $whereClauses[] = "BO_SAT.Gia <= :price_max";
 }
 
-// Lọc theo đánh giá
 if ($rating) {
     $whereClauses[] = "COALESCE(CEILING(AVG(DANH_GIA.Sao)), 0) >= :rating";
 }
 
 $whereSql = implode(" AND ", $whereClauses);
 
-// Khởi tạo phần ORDER BY
 $orderBy = '';
 switch ($sort) {
     case 'price_asc':
@@ -65,12 +57,10 @@ switch ($sort) {
         $orderBy = 'ORDER BY BO_SAT.Ma_bo_sat DESC';
 }
 
-// Phân trang
 $limit = 12;
 $page = isset($_GET['page']) && $_GET['page'] > 0 ? (int) $_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
 
-// Truy vấn tìm kiếm với bộ lọc và sắp xếp
 $sql = "SELECT 
             BO_SAT.Ma_bo_sat, 
             BO_SAT.Ten_bo_sat, 
@@ -88,14 +78,13 @@ $sql = "SELECT
         JOIN DANH_MUC ON BO_SAT.Ma_danh_muc = DANH_MUC.Ma_danh_muc
         WHERE $whereSql
         GROUP BY BO_SAT.Ma_bo_sat, BO_SAT.Ten_bo_sat, BO_SAT.Gia, BO_SAT.Mo_ta, DANH_MUC.Ten_danh_muc
-        HAVING COALESCE(CEILING(AVG(DANH_GIA.Sao)), 0) >= 3
+        HAVING COALESCE(CEILING(AVG(DANH_GIA.Sao)), 0) >= :rating OR :rating IS NULL
         $orderBy
         LIMIT :limit OFFSET :offset";
 
 $stmt = $conn->prepare($sql);
 $stmt->bindValue(':query', "%$query%", PDO::PARAM_STR);
 
-// Gắn các tham số vào truy vấn
 if ($category) {
     $stmt->bindValue(':category', $category, PDO::PARAM_INT);
 }
@@ -107,16 +96,18 @@ if ($priceMax) {
 }
 if ($rating) {
     $stmt->bindValue(':rating', $rating, PDO::PARAM_INT);
+} else {
+    $stmt->bindValue(':rating', null, PDO::PARAM_NULL);
 }
 
 $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
 $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+
 $stmt->execute();
 
 $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Tính tổng số trang
-$countSql = "SELECT COUNT(*) AS total 
+$countSql = "SELECT COUNT(DISTINCT BO_SAT.Ma_bo_sat) AS total 
             FROM BO_SAT
             LEFT JOIN DANH_GIA ON BO_SAT.Ma_bo_sat = DANH_GIA.Ma_bo_sat
             JOIN DANH_MUC ON BO_SAT.Ma_danh_muc = DANH_MUC.Ma_danh_muc
@@ -145,19 +136,15 @@ $totalPages = ceil($total / $limit);
 
 <?php include('components/header.php'); ?>
 
-<!-- Nội dung chính của trang -->
 <div class="container mt-4">
     <?php include('components/breadcrumb.php'); ?>
 
     <div class="row">
-        <!-- Sidebar -->
         <div class="col-md-3">
             <?php include('components/sidebar.php'); ?>
         </div>
 
-        <!-- Main Content -->
         <div class="col-md-9">
-            <!-- Thanh Sắp Xếp -->
             <div class="sorting-bar d-flex justify-content-end mb-4">
                 <form method="GET" action="search_results.php" class="d-inline-block">
                     <input type="hidden" name="query" value="<?= htmlspecialchars($query) ?>">
@@ -178,16 +165,16 @@ $totalPages = ceil($total / $limit);
                     <?php
                     if ($products) {
                         foreach ($products as $product) {
-                            include 'components/product-card.php'; // Gọi card sản phẩm
+                            include 'components/product-card.php';
                         }
                     } else {
                         echo "<p>Không tìm thấy sản phẩm nào với từ khóa: <strong>" . htmlspecialchars($query) . "</strong></p>";
                     }
+
                     ?>
                 </div>
             </div>
 
-            <!-- Phân trang -->
             <?php if ($totalPages > 1): ?>
                 <nav>
                     <ul class="pagination justify-content-center">
@@ -201,9 +188,12 @@ $totalPages = ceil($total / $limit);
                         <?php for ($i = 1; $i <= $totalPages; $i++): ?>
                             <li class="page-item <?= ($i === $page) ? 'active' : '' ?>">
                                 <a class="page-link"
-                                    href="?query=<?= urlencode($query) ?>&sort=<?= urlencode($sort) ?>&page=<?= $i ?>"><?= $i ?></a>
+                                    href="?query=<?= htmlspecialchars($query) ?>&sort=<?= htmlspecialchars($sort) ?>&category=<?= htmlspecialchars($category) ?>&price_min=<?= htmlspecialchars($priceMin) ?>&price_max=<?= htmlspecialchars($priceMax) ?>&rating=<?= htmlspecialchars($rating) ?>&page=<?= $i ?>">
+                                    <?= $i ?>
+                                </a>
                             </li>
                         <?php endfor; ?>
+
 
                         <?php if ($page < $totalPages): ?>
                             <li class="page-item">

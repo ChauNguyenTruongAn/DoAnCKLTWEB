@@ -1,5 +1,14 @@
 <?php
 ob_start();
+session_start(); // Đảm bảo session được bắt đầu
+
+// Kiểm tra nếu người dùng chưa đăng nhập
+if (!isset($_SESSION['Ma_khach_hang']) || empty($_SESSION['Ma_khach_hang'])) {
+    // Lưu thông báo vào session và chuyển hướng đến trang login
+    $_SESSION['message'] = "Bạn cần phải đăng nhập để truy cập giỏ hàng!";
+    header("Location: login.php");
+    exit(); // Dừng script lại sau khi chuyển hướng
+}
 
 include("config.php");
 include("components/header.php");
@@ -177,4 +186,5 @@ foreach ($result as $row) {
     });
 </script>
 
-<?php ob_end_flush();include('components/footer.php'); ?>
+<?php ob_end_flush();
+include('components/footer.php'); ?>
